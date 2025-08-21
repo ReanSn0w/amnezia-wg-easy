@@ -70,7 +70,7 @@
 ```yaml
 services:
   proxy:
-		image: umputun/reproxy:latest
+    image: umputun/reproxy:latest
     restart: unless-stopped
     environment:
       DOCKER_ENABLED: true
