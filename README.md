@@ -1,49 +1,45 @@
 # AmnewziaWG Easy
 
-You have found the easiest way to install & manage WireGuard on any Linux host!
+Вы нашли простейший способ установки и управления Amnezia WG на любом Linux хосте!
 
 <p align="center">
   <img src="./assets/screenshot.png" width="802" />
 </p>
 
-## Features
+## Возможности
 
-* All-in-one: AmneziaWG + Web UI.
-* Easy installation, simple to use.
-* List, create, edit, delete, enable & disable clients.
-* Show a client's QR code.
-* Download a client's configuration file.
-* Statistics for which clients are connected.
-* Tx/Rx charts for each connected client.
-* Gravatar support or random avatars.
-* Automatic Light / Dark Mode
-* Multilanguage Support
-* Traffic Stats (default off)
-* One Time Links (default off)
-* Client Expiry (default off)
-* Prometheus metrics support
+* Все в одном: AmneziaWG + Web UI.
+* Простая установка и использование.
+* Просмотр, создание, редактирование, удаление и отключение клиентов.
+* Просмотр QR кода для клиента.
+* Скачивание файла конфигурации.
+* Просмотр статистики подключенных клиентов.
+* Tx/Rx графики для каждого клиента.
+* Поддержка Gravatar или рандомных изображений.
+* Автоматическое переключение режимов (темная / светлая тема)
+* Поддержка разных языков
+* Статистика трафика (по умолчанию: выключена)
+* Одноразовые ссылки (по умолчанию: выключены)
+* Ограничение по времени (по умолчанию: выключено)
+* Поддержка выгрузки метрик в Prometheus
 
-## Requirements
+## Требования
 
-* A host with Docker installed.
+* Хост с установленным Docker
+* [Опционально] с Docker Compose
 
-## Installation
+## Установка
 
 ### 1. Install Docker
 
-If you haven't installed Docker yet, install it by running:
+- [Linux](https://docs.docker.com/engine/install/)
+- [Mac & Windows](https://docs.docker.com/get-started/get-docker/)
 
-```bash
-curl -sSL https://get.docker.com | sh
-sudo usermod -aG docker $(whoami)
-exit
-```
+### 2. Запуск AmneziaWG Easy
 
-And log in again.
+#### 2.1 С помощью Docker (менее безопасно из-за отсутсвия https)
 
-### 2. Run AmneziaWG Easy
-
-To automatically install & run wg-easy, simply run:
+Для автоматической установки и запуска выполни команду, подставив свои параметры:
 
 ```
   docker run -d \
@@ -53,7 +49,7 @@ To automatically install & run wg-easy, simply run:
   -e PASSWORD_HASH=<🚨YOUR_ADMIN_PASSWORD_HASH> \
   -e PORT=51821 \
   -e WG_PORT=51820 \
-  -v ~/.amnezia-wg-easy:/etc/wireguard \
+  -v ~/.amnezia-wg-easy:/etc/amnezia/amneziawg \
   -p 51820:51820/udp \
   -p 51821:51821/tcp \
   --cap-add=NET_ADMIN \
@@ -62,68 +58,141 @@ To automatically install & run wg-easy, simply run:
   --sysctl="net.ipv4.ip_forward=1" \
   --device=/dev/net/tun:/dev/net/tun \
   --restart unless-stopped \
-  ghcr.io/w0rng/amnezia-wg-easy
+  ghcr.io/ReanSn0w/amnezia-wg-easy
 ```
 
-> 💡 Replace `YOUR_SERVER_IP` with your WAN IP, or a Dynamic DNS hostname.
+#### 2.2 Запуск с помощью Docker-comopose (С автоматической генерацией сертификата и использованием https)
+
+> Данный способ требует использования доменного имени для выпуска сертификата
+
+Для использования Docker Compose потребуется создать файл docker-compose.yml с содержимым
+
+```yaml
+services:
+  proxy:
+		image: umputun/reproxy:latest
+    restart: unless-stopped
+    environment:
+      DOCKER_ENABLED: true
+      SSL_TYPE: auto
+      SSL_ACME_LOCATION: /ssl
+    ports:
+    	- 80:8080
+    	- 443:8443
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - cert_data:/ssl
+    depends_on:
+      awg:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1M"
+        max-file: "3"
+
+  awg:
+    image: ghcr.io/ReanSn0w/amnezia-wg-easy
+    restart: unless-stopped
+    ports:
+      - 51820:51820/udp
+    environment:
+      WG_HOST: <🚨YOUR_SERVER_DOMAIN>
+      PASSWORD_HASH: <🚨YOUR_ADMIN_PASSWORD_HASH>
+      PORT: 51821
+      WG_PORT: 51820
+    volumes:
+      - awg_data:/etc/amnezia/amneziawg
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    devices:
+      - "/dev/net/tun:/dev/net/tun"
+    labels:
+      reproxy.server: <🚨YOUR_SERVER_DOMAIN>
+      reproxy.route: ^/(.*)
+      reproxy.port: 51821
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1M"
+        max-file: "3"
+      
+volumes:
+  awg_data:
+  cert_data:
+```
+
+после создания файла необходимо запустить полученную конфигурацию
+
+```bash
+docker compose up -d
+```
+
+
+
+> 💡 Замени `YOUR_SERVER_IP` IP адресом своего сервера или доменом связанным с ним.
 >
-> 💡 Replace `YOUR_ADMIN_PASSWORD_HASH` with a bcrypt password hash to log in on the Web UI.
-> See [How_to_generate_an_bcrypt_hash.md](./How_to_generate_an_bcrypt_hash.md) for know how generate the hash.
+> 💡 Замени `YOUR_ADMIN_PASSWORD_HASH` на bcrypt хеш от твоего пароля.
+> Сомтри [How_to_generate_an_bcrypt_hash.md](./How_to_generate_an_bcrypt_hash.md) что бы узнать как его получить.
 
-The Web UI will now be available on `http://0.0.0.0:51821`.
+UI панель будет доступна по адресу `http://<🚨YOUR_SERVER_IP>:51821`.
 
-The Prometheus metrics will now be available on `http://0.0.0.0:51821/metrics`. Grafana dashboard [21733](https://grafana.com/grafana/dashboards/21733-wireguard/)
+Prometheus доступны по адресу `http://0.0.0.0:51821/metrics`. Grafana для просмотра обычно будет на порту [21733](https://grafana.com/grafana/dashboards/21733-wireguard/)
 
-> 💡 Your configuration files will be saved in `~/.amnezia-wg-easy`
+> 💡 Твоя конфигурация хранится тут `~/.amnezia-wg-easy`
 
-## Options
+## Параметры
 
-These options can be configured by setting environment variables using `-e KEY="VALUE"` in the `docker run` command.
+Полный список доступных параметров
 
-| Env                           | Default           | Example                        | Description                                                                                                                                                                                                              |
-|-------------------------------|-------------------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `PORT`                        | `51821`           | `6789`                         | TCP port for Web UI.                                                                                                                                                                                                     |
-| `WEBUI_HOST`                  | `0.0.0.0`         | `localhost`                    | IP address web UI binds to.                                                                                                                                                                                              |
-| `PASSWORD_HASH`               | -                 | `$2y$05$Ci...`                 | When set, requires a password when logging in to the Web UI. See [How to generate an bcrypt hash.md]("https://github.com/wg-easy/wg-easy/blob/master/How_to_generate_an_bcrypt_hash.md") for know how generate the hash. |
-| `WG_HOST`                     | -                 | `vpn.myserver.com`             | The public hostname of your VPN server.                                                                                                                                                                                  |
-| `WG_DEVICE`                   | `eth0`            | `ens6f0`                       | Ethernet device the wireguard traffic should be forwarded through.                                                                                                                                                       |
-| `WG_PORT`                     | `51820`           | `12345`                        | The public UDP port of your VPN server. WireGuard will listen on that (othwise default) inside the Docker container.                                                                                                     |
-| `WG_CONFIG_PORT`              | `51820`           | `12345`                        | The UDP port used on [Home Assistant Plugin](https://github.com/adriy-be/homeassistant-addons-jdeath/tree/main/wgeasy)                                                                                                   |
-| `WG_MTU`                      | `null`            | `1420`                         | The MTU the clients will use. Server uses default WG MTU.                                                                                                                                                                |
-| `WG_PERSISTENT_KEEPALIVE`     | `0`               | `25`                           | Value in seconds to keep the "connection" open. If this value is 0, then connections won't be kept alive.                                                                                                                |
-| `WG_DEFAULT_ADDRESS`          | `10.8.0.x`        | `10.6.0.x`                     | Clients IP address range.                                                                                                                                                                                                |
-| `WG_DEFAULT_DNS`              | `1.1.1.1`         | `8.8.8.8, 8.8.4.4`             | DNS server clients will use. If set to blank value, clients will not use any DNS.                                                                                                                                        |
-| `WG_ALLOWED_IPS`              | `0.0.0.0/0, ::/0` | `192.168.15.0/24, 10.0.1.0/24` | Allowed IPs clients will use.                                                                                                                                                                                            |
-| `WG_PRE_UP`                   | `...`             | -                              | See [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L19) for the default value.                                                                                                                 |
-| `WG_POST_UP`                  | `...`             | `iptables ...`                 | See [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L20) for the default value.                                                                                                                 |
-| `WG_PRE_DOWN`                 | `...`             | -                              | See [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L27) for the default value.                                                                                                                 |
-| `WG_POST_DOWN`                | `...`             | `iptables ...`                 | See [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L28) for the default value.                                                                                                                 |
-| `WG_ENABLE_EXPIRES_TIME`      | `false`           | `true`                         | Enable expire time for clients                                                                                                                                                                                           |
-| `LANG`                        | `en`              | `de`                           | Web UI language (Supports: en, ua, ru, tr, no, pl, fr, de, ca, es, ko, vi, nl, is, pt, chs, cht, it, th, hi).                                                                                                            |
-| `UI_TRAFFIC_STATS`            | `false`           | `true`                         | Enable detailed RX / TX client stats in Web UI                                                                                                                                                                           |
-| `UI_CHART_TYPE`               | `0`               | `1`                            | UI_CHART_TYPE=0 # Charts disabled, UI_CHART_TYPE=1 # Line chart, UI_CHART_TYPE=2 # Area chart, UI_CHART_TYPE=3 # Bar chart                                                                                               |
-| `DICEBEAR_TYPE`               | `false`           | `bottts`                       | see [dicebear types](https://www.dicebear.com/styles/)                                                                                                                                                                   |
-| `USE_GRAVATAR`                | `false`           | `true`                         | Use or not GRAVATAR service                                                                                                                                                                                              |
-| `WG_ENABLE_ONE_TIME_LINKS`    | `false`           | `true`                         | Enable display and generation of short one time download links (expire after 5 minutes)                                                                                                                                  |
-| `MAX_AGE`                     | `0`               | `1440`                         | The maximum age of Web UI sessions in minutes. `0` means that the session will exist until the browser is closed.                                                                                                        |
-| `UI_ENABLE_SORT_CLIENTS`      | `false`           | `true`                         | Enable UI sort clients by name                                                                                                                                                                                           |
-| `ENABLE_PROMETHEUS_METRICS`   | `false`           | `true`                         | Enable Prometheus metrics `http://0.0.0.0:51821/metrics` and `http://0.0.0.0:51821/metrics/json`                                                                                                                         |
-| `PROMETHEUS_METRICS_PASSWORD` | -                 | `$2y$05$Ci...`                 | If set, Basic Auth is required when requesting metrics. See [How to generate an bcrypt hash.md]("https://github.com/wg-easy/wg-easy/blob/master/How_to_generate_an_bcrypt_hash.md") for know how generate the hash.      |
-| `JC`                          | `random`          | `5`                            | Junk packet count — number of packets with random data that are sent before the start of the session.                                                                                                                    |
-| `JMIN`                        | `50`              | `25`                           | Junk packet minimum size — minimum packet size for Junk packet. That is, all randomly generated packets will have a size no smaller than Jmin.                                                                           |
-| `JMAX`                        | `1000`            | `250`                          | Junk packet maximum size — maximum size for Junk packets.                                                                                                                                                                |
-| `S1`                          | `random`          | `75`                           | Init packet junk size — the size of random data that will be added to the init packet, the size of which is initially fixed.                                                                                             |
-| `S2`                          | `random`          | `75`                           | Response packet junk size — the size of random data that will be added to the response packet, the size of which is initially fixed.                                                                                     |
-| `H1`                          | `random`          | `1234567891`                   | Init packet magic header — the header of the first byte of the handshake. Must be < uint_max.                                                                                                                            |
-| `H2`                          | `random`          | `1234567892`                   | Response packet magic header — header of the first byte of the handshake response. Must be < uint_max.                                                                                                                   |
-| `H3`                          | `random`          | `1234567893`                   | Underload packet magic header — UnderLoad packet header. Must be < uint_max.                                                                                                                                             |
-| `H4`                          | `random`          | `1234567894`                   | Transport packet magic header — header of the packet of the data packet. Must be < uint_max.                                                                                                                             |
+| Env                           | Default           | Example                        | Description                                                  |
+| ----------------------------- | ----------------- | ------------------------------ | ------------------------------------------------------------ |
+| `PORT`                        | `51821`           | `6789`                         | Прорт для WebUI.                                             |
+| `WEBUI_HOST`                  | `0.0.0.0`         | `localhost`                    | IP адрес хоста.                                              |
+| `PASSWORD_HASH`               | -                 | `$2y$05$Ci...`                 | Когда параметр установлен Web UI будет запрашивать пароль для доступа. См. [How to generate an bcrypt hash.md]("https://github.com/wg-easy/wg-easy/blob/master/How_to_generate_an_bcrypt_hash.md") что бы узнать как сгенерировать хеш. |
+| `WG_HOST`                     | -                 | `vpn.myserver.com`             | Публичный IP или домен связанный с хостом.                   |
+| `WG_DEVICE`                   | `eth0`            | `ens6f0`                       | Ethernet устройство через которое будет проходить траффик Wireguard. |
+| `WG_PORT`                     | `51820`           | `12345`                        | Публичный UDP порт сервера который будет слушать WireGuard.  |
+| `WG_CONFIG_PORT`              | `51820`           | `12345`                        | UDP порт используемый для [Home Assistant Plugin](https://github.com/adriy-be/homeassistant-addons-jdeath/tree/main/wgeasy) |
+| `WG_MTU`                      | `null`            | `1420`                         | MTU для клинтов. Сервер будет использовать стандартный WG MTU. |
+| `WG_PERSISTENT_KEEPALIVE`     | `0`               | `25`                           | Значение в секундах во время которого соединение будет поддерживатся открытым. If this value is 0, then connections won't be kept alive. |
+| `WG_DEFAULT_ADDRESS`          | `10.8.0.x`        | `10.6.0.x`                     | Сеть в рамках которой клиентам будут выдаватся адреса.       |
+| `WG_DEFAULT_DNS`              | `1.1.1.1`         | `8.8.8.8, 8.8.4.4`             | DNS который будет предоставлен клиентам в конфигурации Wireguard. |
+| `WG_ALLOWED_IPS`              | `0.0.0.0/0, ::/0` | `192.168.15.0/24, 10.0.1.0/24` | Список IP доступ к которым будет организован через данное соединение. |
+| `WG_PRE_UP`                   | `...`             | -                              | Смотри [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L19) для просмотра значения по-умолчанию. |
+| `WG_POST_UP`                  | `...`             | `iptables ...`                 | Смотри [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L19) для просмотра значения по-умолчанию. |
+| `WG_PRE_DOWN`                 | `...`             | -                              | Смотри [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L19) для просмотра значения по-умолчанию. |
+| `WG_POST_DOWN`                | `...`             | `iptables ...`                 | Смотри [config.js](https://github.com/wg-easy/wg-easy/blob/master/src/config.js#L19) для просмотра значения по-умолчанию. |
+| `WG_ENABLE_EXPIRES_TIME`      | `false`           | `true`                         | Флаг включает возможность создавать временные конфигурации   |
+| `LANG`                        | `en`              | `de`                           | Язык Web UI (Supports: en, ua, ru, tr, no, pl, fr, de, ca, es, ko, vi, nl, is, pt, chs, cht, it, th, hi). |
+| `UI_TRAFFIC_STATS`            | `false`           | `true`                         | Флаг включает RX / TX статистику в Web UI                    |
+| `UI_CHART_TYPE`               | `0`               | `1`                            | UI_CHART_TYPE=0 # Charts disabled, UI_CHART_TYPE=1 # Line chart, UI_CHART_TYPE=2 # Area chart, UI_CHART_TYPE=3 # Bar chart |
+| `DICEBEAR_TYPE`               | `false`           | `bottts`                       | Смотри [dicebear types](https://www.dicebear.com/styles/)    |
+| `USE_GRAVATAR`                | `false`           | `true`                         | Флаг активирует использование GRAVATAR                       |
+| `WG_ENABLE_ONE_TIME_LINKS`    | `false`           | `true`                         | Флаг включает возможность работы с временными ссылками для скачивания документа |
+| `MAX_AGE`                     | `0`               | `1440`                         | Максимальное время жизни сессии для WebUI                    |
+| `UI_ENABLE_SORT_CLIENTS`      | `false`           | `true`                         | Флаг включает сортировку клиентов на основе имени            |
+| `ENABLE_PROMETHEUS_METRICS`   | `false`           | `true`                         | Флаг активирует Prometheus статистику по  `http://0.0.0.0:51821/metrics` и `http://0.0.0.0:51821/metrics/json` |
+| `PROMETHEUS_METRICS_PASSWORD` | -                 | `$2y$05$Ci...`                 | Когда параметр установлен Basic Auth для Prometheus будет требоватся для доступа. См. [How to generate an bcrypt hash.md]("https://github.com/wg-easy/wg-easy/blob/master/How_to_generate_an_bcrypt_hash.md") что бы узнать как сгенерировать хеш. |
+| `JC`                          | `random`          | `5`                            | Кол-во пакетов с шумом, котрое будет отправлено перед сессией. |
+| `JMIN`                        | `50`              | `25`                           | Минимальный размер такого пакета с шумом.                    |
+| `JMAX`                        | `1000`            | `250`                          | Максимальный размер пакета с шумом.                          |
+| `S1`                          | `random`          | `75`                           | Размер данных который будет добавлен к пакету инициализации соединения |
+| `S2`                          | `random`          | `75`                           | Размер данных который будет добавлен к пакету ответа.        |
+| `H1`                          | `random`          | `1234567891`                   | Init packet magic header — the header of the first byte of the handshake. Должен быть < uint_max. |
+| `H2`                          | `random`          | `1234567892`                   | Response packet magic header — header of the first byte of the handshake response. Доблжен быть < uint_max. |
+| `H3`                          | `random`          | `1234567893`                   | Underload packet magic header — UnderLoad packet header. Должен быть < uint_max. |
+| `H4`                          | `random`          | `1234567894`                   | Transport packet magic header — header of the packet of the data packet. Должен быть < uint_max. |
 
-> If you change `WG_PORT`, make sure to also change the exposed port.
+> Если будет изменен `WG_PORT`, убедитесь что порт хоста будет соответствовать этому значению.
 
-## Updating
+## Обновление
 
-To update to the latest version, simply run:
+Для обновления конфигурации использующей только docker (способ 2.1):
 
 ```bash
 docker stop amnezia-wg-easy
@@ -131,9 +200,19 @@ docker rm amnezia-wg-easy
 docker pull ghcr.io/w0rng/amnezia-wg-easy
 ```
 
-And then run the `docker run -d \ ...` command above again.
+Для случая с Docker Compose
 
-## Thanks
+```bash
+docker compose down
+docker compose pull
+```
 
-Based on [wg-easy](https://github.com/wg-easy/wg-easy) by Emile Nijssen.  
-Use integrations with AmneziaWg from [amnezia-wg-easy](https://github.com/spcfox/amnezia-wg-easy) by Viktor Yudov.
+А после выполнения запустить сервис подобно тому как вы делали это в пункте 2.
+
+## Благодарности
+
+Основано на [wg-easy](https://github.com/wg-easy/wg-easy) от Emile Nijssen.  
+
+Использованы интеграции AmneziaWg из [amnezia-wg-easy](https://github.com/spcfox/amnezia-wg-easy) от Viktor Yudov.
+
+Является обновленным проектом [amnezia-wg-easy](https://github.com/w0rng/amnezia-wg-easy) от [Anton Abramov](https://github.com/w0rng)
